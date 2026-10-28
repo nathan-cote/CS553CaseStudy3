@@ -1,0 +1,39 @@
+# This dockercompose file was created by Claude Opus 5.5 on Medium Thinking to facilitate the docker container build and run process.
+
+name: group3
+
+services:
+  app:
+    build: .
+    image: casestudy3-app
+    container_name: group3-app
+    ports:
+      - "127.0.0.1:3001:7860"   # Gradio
+    restart: unless-stopped
+
+  prometheus:
+    build: ./Prometheus
+    image: casestudy3-prometheus
+    container_name: group3-prometheus
+    ports:
+      - "127.0.0.1:3002:9090"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  grafana:
+    build: ./Grafana
+    image: casestudy3-grafana
+    container_name: group3-grafana
+    ports:
+      - "127.0.0.1:3003:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?set GRAFANA_PASSWORD in .env}
+    volumes:
+      - grafana-data:/var/lib/grafana   # keeps dashboards/data sources across restarts
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  grafana-data:
