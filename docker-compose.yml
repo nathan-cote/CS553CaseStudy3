@@ -1,19 +1,21 @@
-# This dockercompose file was created by Claude Opus 5.5 on Medium Thinking to facilitate the docker container build and run process.
+# This dockercompose file was originally created by Claude Opus 5.5 on Medium Thinking with the context of our port range of 3001-3010 and the 3 containers needed to facilitate the docker container build and run process. I've made manual updates to improve it afterwards.
 
 name: group3
 
 services:
   app:
     build: .
-    image: casestudy3-app
+    image: group3/casestudy3-app
     container_name: group3-app
     ports:
       - "127.0.0.1:3001:7860"   # Gradio
     restart: unless-stopped
+    networks:
+      - monitoring
 
   prometheus:
     build: ./Prometheus
-    image: casestudy3-prometheus
+    image: group3/casestudy3-prometheus
     container_name: group3-prometheus
     ports:
       - "127.0.0.1:3002:9090"
@@ -37,3 +39,7 @@ services:
 
 volumes:
   grafana-data:
+
+networks:
+  monitoring:
+    external: true
