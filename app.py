@@ -4,6 +4,7 @@ import gradio as gr
 import re
 import os
 import time
+
 hf_token = os.environ.get('HF_TOKEN')
 # Monitor imports as suggested by Claude Opus 5.5 with Medium thinking in conjunction with the monitor.py script.
 import monitor
@@ -16,6 +17,14 @@ clipi_client = Client("fffiloni/CLIP-Interrogator-2")
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from huggingface_hub import InferenceClient
+
+from prometheus_client import start_http_server, Counter, Summary
+
+# --- Default Prometheus metrics - should change to better suit our product ---
+REQUEST_COUNTER = Counter('app_requests_total', 'Total number of requests')
+SUCCESSFUL_REQUESTS = Counter('app_successful_requests_total', 'Total number of successful requests')
+FAILED_REQUESTS = Counter('app_failed_requests_total', 'Total number of failed requests')
+REQUEST_DURATION = Summary('app_request_duration_seconds', 'Time spent processing request')
 
 model_path = "Qwen/Qwen2.5-0.5B-Instruct"  # Qwen/Qwen2.5-3B-Instruct was used in Case Study 1, but when prompting Claude Opus 5.5 with "I can't use Qwen2.5-3B-Instruct anymore as that is far too large. What other model should I use that is much smaller in size?", it suggests we switch to the 0.5B version to save space on the VM as the original 3B model is quite large (~6gb)
 remote_model_path = "openai/gpt-oss-20b"
@@ -144,3 +153,13 @@ with gr.Blocks(css=css) as demo:
     monitor_timer.tick(fn=monitor.get_warning_html, outputs=[warning_banner], show_progress="hidden")  # Suggested by Claude Opus 5.5 on Medium thinking in conjunction with monitor.py
 
 demo.queue(max_size=12).launch(server_name="0.0.0.0", ssr_mode=False, mcp_server=True)  # Adjusted with Claude Opus 5.5 on Medium thinking when asked how to adjust to run on a vm instead of a HuggingFace space - necessary change to allow Gradio to accept connections outside the VM
+
+
+# The below code segment is from the class CaseStudy3 GitHub repository.
+if __name__ == "__main__":
+    # Expose Prometheus metrics at :8000/metrics
+    start_http_server(8000)
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+    )
