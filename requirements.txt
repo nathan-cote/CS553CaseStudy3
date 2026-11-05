@@ -5,3 +5,4 @@ accelerate
 gradio[mcp]
 huggingface_hub
 psutil
+prometheus_client

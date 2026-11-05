@@ -9,6 +9,8 @@ services:
     container_name: group3-app
     ports:
       - "127.0.0.1:3004:7860"   # Gradio
+    environment:
+      - HF_TOKEN=${HF_TOKEN:?set HF_TOKEN in .env}
     restart: unless-stopped
     networks:
       - monitoring
