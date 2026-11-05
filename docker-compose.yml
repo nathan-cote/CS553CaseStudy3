@@ -8,7 +8,7 @@ services:
     image: group3/casestudy3-app
     container_name: group3-app
     ports:
-      - "127.0.0.1:3001:7860"   # Gradio
+      - "127.0.0.1:3004:7860"   # Gradio
     restart: unless-stopped
     networks:
       - monitoring
@@ -25,7 +25,7 @@ services:
 
   grafana:
     build: ./Grafana
-    image: casestudy3-grafana
+    image: group3/casestudy3-grafana
     container_name: group3-grafana
     ports:
       - "127.0.0.1:3003:3000"
