@@ -1,4 +1,5 @@
 # This dockercompose file was originally created by Claude Opus 5.5 on Medium Thinking with the context of our port range of 3001-3010 and the 3 containers needed to facilitate the docker container build and run process. I've made manual updates to improve it afterwards.
+#it was then updated by ChatGPT to change the network configuration while working through a Grafana connection error.
 
 name: group3
 
@@ -24,6 +25,9 @@ services:
     depends_on:
       - app
     restart: unless-stopped
+    networks:
+      - default
+      - monitoring
 
   grafana:
     build: ./Grafana

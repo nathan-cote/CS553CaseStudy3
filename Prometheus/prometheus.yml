@@ -1,11 +1,13 @@
+# This file is an edited from the class Case Study 3 GitHub repository.
+
 global:
   scrape_interval: 15s
 
 scrape_configs:
   - job_name: 'gradio_app'
     static_configs:
-      - targets: ['rcp_app:8000']  # Gradio metrics
+      - targets: ['group3-app:8000']
 
   - job_name: 'node_exporter_gradio'
     static_configs:
-      - targets: ['rcp_app:9100']  # Node Exporter
+      - targets: ['group3-app:9100']

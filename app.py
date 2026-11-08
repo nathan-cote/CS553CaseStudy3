@@ -152,14 +152,17 @@ with gr.Blocks(css=css) as demo:
     monitor_timer = gr.Timer(5)  # Suggested by Claude Opus 5.5 on Medium thinking in conjunction with monitor.py
     monitor_timer.tick(fn=monitor.get_warning_html, outputs=[warning_banner], show_progress="hidden")  # Suggested by Claude Opus 5.5 on Medium thinking in conjunction with monitor.py
 
-demo.queue(max_size=12).launch(server_name="0.0.0.0", ssr_mode=False, mcp_server=True)  # Adjusted with Claude Opus 5.5 on Medium thinking when asked how to adjust to run on a vm instead of a HuggingFace space - necessary change to allow Gradio to accept connections outside the VM
-
-
 # The below code segment is from the class CaseStudy3 GitHub repository.
+# It was then modifie by ChatGPT to fix the start_http_server(8000) line never running
+
 if __name__ == "__main__":
     # Expose Prometheus metrics at :8000/metrics
     start_http_server(8000)
-    demo.launch(
+
+    # Start Gradio application
+    demo.queue(max_size=12).launch(
         server_name="0.0.0.0",
         server_port=7860,
+        ssr_mode=False,
+        mcp_server=True
     )

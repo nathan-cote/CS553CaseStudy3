@@ -7,3 +7,9 @@ venv/
 .env
 .env.local
 cron_debug.log
+node_modules/
+.opencode/
+opencode.log
+__pycache__/
+*.pyc
+harness.py
