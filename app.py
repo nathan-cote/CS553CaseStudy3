@@ -73,7 +73,7 @@ def gen_remote(messages):
     gr.Info('Calling OpenAI/gpt-oss-20b (remote)...')
     start_time = time.perf_counter()
     inf_client = InferenceClient(token=hf_token)
-    response = inf_client.chat_completion(model=remote_model_path, messages=messages, max_tokens=4096)  # Revised by Claude Opus 5.5 on Medium thinking so the system message is passed properly, not as raw text inside the user message like before.
+    response = inf_client.chat_completion(model=remote_model_path, messages=messages, max_tokens=512)  # Revised by Claude Opus 5.5 on Medium thinking so the system message is passed properly, not as raw text inside the user message like before.
     text = response.choices[0].message.content
     elapsed = time.perf_counter() - start_time
     metrics.LLM_DURATION.labels("remote").observe(elapsed)  # Added by Claude Opus 5.5 on Medium Thinking mode when asked to integrate the metrics in metrics.py into app.py.
