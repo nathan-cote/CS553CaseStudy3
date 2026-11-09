@@ -4,6 +4,7 @@ import gradio as gr
 import re
 import os
 import time
+import metrics  # Prometheus metrics are defined in metrics.py (written by Claude Opus 5.5 on Medium Thinking mode.)
 
 hf_token = os.environ.get('HF_TOKEN')
 # Monitor imports as suggested by Claude Opus 5.5 with Medium thinking in conjunction with the monitor.py script.
@@ -18,13 +19,8 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from huggingface_hub import InferenceClient
 
-from prometheus_client import start_http_server, Counter, Summary
+from prometheus_client import start_http_server
 
-# --- Default Prometheus metrics - should change to better suit our product ---
-REQUEST_COUNTER = Counter('app_requests_total', 'Total number of requests')
-SUCCESSFUL_REQUESTS = Counter('app_successful_requests_total', 'Total number of successful requests')
-FAILED_REQUESTS = Counter('app_failed_requests_total', 'Total number of failed requests')
-REQUEST_DURATION = Summary('app_request_duration_seconds', 'Time spent processing request')
 
 model_path = "Qwen/Qwen2.5-0.5B-Instruct"  # Qwen/Qwen2.5-3B-Instruct was used in Case Study 1, but when prompting Claude Opus 5.5 with "I can't use Qwen2.5-3B-Instruct anymore as that is far too large. What other model should I use that is much smaller in size?", it suggests we switch to the 0.5B version to save space on the VM as the original 3B model is quite large (~6gb)
 remote_model_path = "openai/gpt-oss-20b"
@@ -39,9 +35,10 @@ SYSTEM_PROMPT = (
     "If the description is vague, give the safety advice that best fits it."
 )
 
-
+_load_start = time.perf_counter()  # Added by Claude Opus 5.5 on Medium Thinking mode when asked to integrate the metrics in metrics.py into app.py.
 tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False, token=hf_token)
 model = AutoModelForCausalLM.from_pretrained(model_path, token=hf_token, torch_dtype="auto", device_map="auto")  # Adjusted with Claude Opus 5.5 to run on CPU as CUDA is no longer available
+metrics.MODEL_LOAD_SECONDS.set(time.perf_counter() - _load_start)  # Added by Claude Opus 5.5 on Medium Thinking mode when asked to integrate the metrics in metrics.py into app.py.
 
 # Revised by Claude Opus 5.5 on Medium thinking to use Qwen's chat template instead of Ollama's while also providing better support for the local (small) model.
 def gen_safety_advice(description, platform):
@@ -66,6 +63,8 @@ def gen_local(messages):
     new_tokens = generate_ids[0][inputs["input_ids"].shape[-1]:]  # drop the prompt tokens
     text = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
     elapsed = time.perf_counter() - start_time
+    metrics.LLM_DURATION.labels("local").observe(elapsed)  # Added by Claude Opus 5.5 on Medium Thinking mode when asked to integrate the metrics in metrics.py into app.py.
+    metrics.LLM_OUTPUT_TOKENS.labels("local").observe(len(new_tokens))  # Added by Claude Opus 5.5 on Medium Thinking mode when asked to integrate the metrics in metrics.py into app.py.
     print(f"[TIMING] platform=local elapsed={elapsed:.2f}s")
     return f"{text}\n\n_(Response time - {elapsed:.2f}s)_"
 
@@ -77,10 +76,15 @@ def gen_remote(messages):
     response = inf_client.chat_completion(model=remote_model_path, messages=messages, max_tokens=4096)  # Revised by Claude Opus 5.5 on Medium thinking so the system message is passed properly, not as raw text inside the user message like before.
     text = response.choices[0].message.content
     elapsed = time.perf_counter() - start_time
+    metrics.LLM_DURATION.labels("remote").observe(elapsed)  # Added by Claude Opus 5.5 on Medium Thinking mode when asked to integrate the metrics in metrics.py into app.py.
+    usage = getattr(response, "usage", None)  # Added by Claude Opus 5.5 on Medium Thinking mode when asked to integrate the metrics in metrics.py into app.py.
+    if usage is not None and getattr(usage, "completion_tokens", None):  # Added by Claude Opus 5.5 on Medium Thinking mode when asked to integrate the metrics in metrics.py into app.py.
+        metrics.LLM_OUTPUT_TOKENS.labels("remote").observe(usage.completion_tokens)  # Added by Claude Opus 5.5 on Medium Thinking mode when asked to integrate the metrics in metrics.py into app.py.
     print(f"[TIMING] platform=remote elapsed={elapsed:.2f}s")
     return f"{text}\n\n_(Response time - {elapsed:.2f}s)_"
 
 
+# Revised by Claude Opus 5.5 on Medium Thinking mode when asked to integrate the metrics in metrics.py into app.py, and fixed a bug to catch the error when CLIP fails and there isn't any text input.
 def infer(image_input, text_input, running_platform):
     """Generate 2-4 sentence of the most important safety advice based on an image using CLIP Interrogator and an LLM.
     
@@ -92,27 +96,46 @@ def infer(image_input, text_input, running_platform):
         A formatted, 2-4 sentence segment of safety advice based on the provided image.
 
     """
-    if running_platform == "":
+
+    if not running_platform:
         gr.Info("No model selected, using remote inference model by default.")
 
+    platform = "local" if running_platform == "Local (Qwen/Qwen2.5-0.5B-Instruct)" else "remote"
+    metrics.IN_PROGRESS.inc()
+    request_start = time.perf_counter()
+    status = "error"
     try:
-        gr.Info('Calling CLIP Interrogator ...')
+        clip_start = time.perf_counter()
+        try:
+            gr.Info('Calling CLIP Interrogator ...')
+            clipi_result = clipi_client.predict(
+                input_image=handle_file(image_input),
+                interrogation_mode="best",
+                best_mode_max_flavors=4,
+                api_name="/clipi2"
+            )
+            print(clipi_result)
+        except Exception as e:
+            print(f"[CLIP] failed: {e}")
+            if text_input:
+                metrics.CLIP_FAILURES.labels("text").inc()
+                clipi_result = text_input
+            else:
+                metrics.CLIP_FAILURES.labels("none").inc()
+                status = "no_input"
+                gr.Info("No text input provided. Please provide a text description and try again.")
+                return "Could not describe the image. Please add a text description and try again."
+        finally:
+            metrics.CLIP_DURATION.observe(time.perf_counter() - clip_start)
 
-        clipi_result = clipi_client.predict(
-            input_image=handle_file(image_input),
-            interrogation_mode="best",
-            best_mode_max_flavors=4,
-            api_name="/clipi2"
-        )
-        print(clipi_result)
-    except Exception as e:
-        if text_input != "":
-            clipi_result = text_input
-        else:
-            gr.Info("No text input provided. Please provide a text description and try again.")
+        result = gen_safety_advice(clipi_result, running_platform)
+        status = "success"
+        return result
+    finally:
+        metrics.IN_PROGRESS.dec()
+        metrics.REQUESTS.labels(platform, status).inc()
+        metrics.REQUEST_DURATION.labels(platform).observe(time.perf_counter() - request_start)
 
-    # Simplified by Claude Opus 5.5 on Medium thinking into the below return statement as there was unneeded bloat from the original product on HuggingFace.
-    return gen_safety_advice(clipi_result, running_platform)
 
 # The resource-warning css format was suggested by Claude Opus 5.5 with Medium thinking in conjuction with monitor.py.
 css="""
